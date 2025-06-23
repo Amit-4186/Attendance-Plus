@@ -12,7 +12,7 @@ import jakarta.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
@@ -26,48 +26,103 @@ class TimetableViewModel @Inject constructor(
     private val _subjectMap = MutableStateFlow<Map<Long, Subject>>(emptyMap())
     val subjectMap: StateFlow<Map<Long, Subject>> = _subjectMap.asStateFlow()
 
-    // Combined state of schedule + attendance for current week
+    // Cache for timetable states by week
+    private val _timetableCache = mutableMapOf<Long, TimetableState>()
+
+    // Current timetable state
     private val _timetableState = MutableStateFlow<TimetableState>(TimetableState.Loading)
     val timetableState: StateFlow<TimetableState> = _timetableState.asStateFlow()
 
-    // Attendance summary
-//    private val _attendanceSummary = MutableStateFlow(emptyMap<Long, Pair<Int, Int>>())
-//    val attendanceSummary: StateFlow<Map<Long, Pair<Int, Int>>> = _attendanceSummary.asStateFlow()
-
     init {
-        loadTimetableData()
         loadSubjectMap()
+        loadTimetableDataForWeek(_currentWeek.value)
     }
 
     fun setWeek(weekStart: Long) {
         _currentWeek.value = weekStart
-        loadTimetableData()
+
+        // Check cache first
+        _timetableCache[weekStart]?.let { cachedState ->
+            _timetableState.value = cachedState
+        } ?: run {
+            // Not in cache, load from database
+            _timetableState.value = TimetableState.Loading
+            loadTimetableDataForWeek(weekStart)
+        }
     }
 
-    private fun loadTimetableData() {
+    private fun loadTimetableDataForWeek(weekStart: Long) {
         viewModelScope.launch {
-            _timetableState.value = TimetableState.Loading
-
-            // Combine both flows
-            combine(
-                repository.getAllSchedules(),
-                repository.getWeeklyAttendance(_currentWeek.value)
-            ) { schedules, attendanceRecords ->
+            try {
+                // Load schedules once (they don't change per week)
+                val schedules = repository.getAllSchedules().first()
                 val scheduleMap = schedules.groupBy { it.dayOfWeek }
+
+                // Load attendance for specific week
+                val attendanceRecords = repository.getWeeklyAttendance(weekStart).first()
                 val attendanceMap = attendanceRecords.associateBy { it.scheduleId }
 
-                TimetableState.Success(
+                val state = TimetableState.Success(
                     scheduleByDay = scheduleMap,
                     attendanceBySchedule = attendanceMap
                 )
-            }.collect { state ->
-                _timetableState.value = state
-//                if (state is TimetableState.Success) {
-//                    _attendanceSummary.value = calculateAttendance(
-//                        state.scheduleByDay.values.flatten(),
-//                        state.attendanceBySchedule
-//                    )
-//                }
+
+                // Update cache and state
+                _timetableCache[weekStart] = state
+                if (_currentWeek.value == weekStart) {
+                    _timetableState.value = state
+                }
+            } catch (e: Exception) {
+                // Handle error
+                _timetableState.value = TimetableState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    fun updateAttendanceStatus(scheduleId: Long, status: AttendanceStatus) {
+        viewModelScope.launch {
+            val week = _currentWeek.value
+
+            // Optimistic UI update
+            updateLocalCache(week, scheduleId, status)
+
+            // Persist to database
+            repository.getAttendanceRecord(week, scheduleId)?.let {
+                repository.updateAttendanceStatus(week, scheduleId, status)
+            } ?: run {
+                repository.markAttendance(
+                    Attendance(
+                        weekStartDate = week,
+                        scheduleId = scheduleId,
+                        status = status
+                    )
+                )
+            }
+        }
+    }
+
+    private fun updateLocalCache(week: Long, scheduleId: Long, status: AttendanceStatus) {
+        val currentState = _timetableCache[week]
+        if (currentState is TimetableState.Success) {
+            val newAttendanceMap = currentState.attendanceBySchedule.toMutableMap()
+            newAttendanceMap[scheduleId] = newAttendanceMap[scheduleId]?.copy(
+                status = status
+            ) ?: Attendance(
+                weekStartDate = week,
+                scheduleId = scheduleId,
+                status = status
+            )
+
+            val newState = currentState.copy(
+                attendanceBySchedule = newAttendanceMap
+            )
+
+            // Update cache
+            _timetableCache[week] = newState
+
+            // Update current state if we're viewing this week
+            if (week == _currentWeek.value) {
+                _timetableState.value = newState
             }
         }
     }
@@ -75,25 +130,6 @@ class TimetableViewModel @Inject constructor(
     fun loadSubjectMap(){
         viewModelScope.launch {
             repository.getAllSubjects().collect { _subjectMap.value = it.associateBy { subject -> subject.id } }
-        }
-    }
-
-    fun updateAttendanceStatus(scheduleId: Long, status: AttendanceStatus) {
-        viewModelScope.launch {
-
-//            updateLocalState(scheduleId, status)
-//            val week = _currentWeek.value
-            repository.getAttendanceRecord(_currentWeek.value, scheduleId)?.let {
-                repository.updateAttendanceStatus(_currentWeek.value, scheduleId, status)
-            } ?: run {
-                repository.markAttendance(
-                    Attendance(
-                        weekStartDate = _currentWeek.value,
-                        scheduleId = scheduleId,
-                        status = status
-                    )
-                )
-            }
         }
     }
 
@@ -108,63 +144,6 @@ class TimetableViewModel @Inject constructor(
             }
         }
     }
-
-
-//    private fun updateLocalState(scheduleId: Long, status: AttendanceStatus) {
-//        val currentState = _timetableState.value
-//        if (currentState is TimetableState.Success) {
-//            val newAttendanceMap = currentState.attendanceBySchedule.toMutableMap()
-//
-//            newAttendanceMap[scheduleId] = newAttendanceMap[scheduleId]?.copy(
-//                status = status
-//            ) ?: Attendance(
-//                weekStartDate = _currentWeek.value,
-//                scheduleId = scheduleId,
-//                status = status
-//            )
-//
-//            _timetableState.value = currentState.copy(
-//                attendanceBySchedule = newAttendanceMap
-//            )
-//
-//            // Update summary immediately
-//            _attendanceSummary.value = calculateAttendance(
-//                currentState.scheduleByDay.values.flatten(),
-//                newAttendanceMap
-//            )
-//        }
-//    }
-
-//    private fun calculateAttendance(
-//        schedules: List<Schedule>,
-//        attendance: Map<Long, Attendance>
-//    ): Map<Long, Pair<Int, Int>> {
-//        return schedule';s.groupBy { it.subjectId }.mapValues { (_, subjectSchedules) ->
-//            val total = subjectSchedules.size
-//            if (total == 0) Pair(0,0)
-//            else {
-//                val presentCount = subjectSchedules.count {
-//                    attendance[it.id]?.status == AttendanceStatus.PRESENT
-//                }
-//                val absentCount = subjectSchedules.count {
-//                    attendance[it.id]?.status == AttendanceStatus.ABSENT
-//                }
-//                Pair(presentCount, absentCount)
-//            }
-//        }
-//    }
-
-//    private fun getStartOfWeek(timeMillis: Long): Long {
-//        val calendar = Calendar.getInstance().apply {
-//            timeInMillis = timeMillis
-//            set(Calendar.HOUR_OF_DAY, 0)
-//            clear(Calendar.MINUTE)
-//            clear(Calendar.SECOND)
-//            clear(Calendar.MILLISECOND)
-//            set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
-//        }
-//        return calendar.timeInMillis
-//    }
 
     fun getStartOfWeek(currentTimeMillis: Long): Long {
         val calendar = Calendar.getInstance().apply {
@@ -185,4 +164,5 @@ sealed class TimetableState {
         val scheduleByDay: Map<Int, List<Schedule>>,
         val attendanceBySchedule: Map<Long, Attendance>
     ) : TimetableState()
+    data class Error(val message: String) : TimetableState()
 }

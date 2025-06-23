@@ -2,6 +2,7 @@ package com.example.attendanceplus.screens
 
 import android.app.DatePickerDialog
 import android.content.Context
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,8 +19,8 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -40,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,12 +56,9 @@ import java.util.Locale
 fun TimetableScreen() {
     val viewModel: TimetableViewModel = hiltViewModel()
     val timetableState by viewModel.timetableState.collectAsState()
-//    val attendanceSummary by viewModel.attendanceSummary.collectAsState()
-//    val attendanceSummaryLocal = remember { attendanceSummary }
     val subjectMap by viewModel.subjectMap.collectAsState()
     var subjectMapLocal by remember { mutableStateOf<Map<Long, Subject>>(emptyMap()) }
     val currentWeek by viewModel.currentWeek.collectAsState()
-    val weekInMillis = 7 * 24 * 60 * 60 * 1000L
 
     LaunchedEffect(subjectMap.isEmpty()) {
         subjectMapLocal = subjectMap.toMutableMap()
@@ -86,11 +85,11 @@ fun TimetableScreen() {
         7 to "Sat"
     )
 
-    Column {
+    Column(modifier = Modifier.padding(horizontal = 8.dp)) {
         WeekSelector(
             currentWeek,
-            { viewModel.setWeek(currentWeek - weekInMillis) },
-            { viewModel.setWeek(currentWeek + weekInMillis) },
+            { viewModel.setWeek(currentWeek - 7 * 24 * 60 * 60 * 1000L) },
+            { viewModel.setWeek(currentWeek + 7 * 24 * 60 * 60 * 1000L) },
             { calender -> viewModel.setWeek(getStartOfWeek(calender)) })
 
         when (val state = timetableState) {
@@ -100,8 +99,15 @@ fun TimetableScreen() {
                 }
             }
 
+            is TimetableState.Error -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Error: ${state.message}")
+                }
+            }
+
             is TimetableState.Success -> {
                 Row(modifier = Modifier.wrapContentHeight()) {
+
                     Column {
                         for (day in 2..7) {
                             Card(
@@ -124,22 +130,32 @@ fun TimetableScreen() {
                             }
                         }
                     }
-                    Column(modifier = Modifier.fillMaxWidth()) {
+
+                    Column(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                         for (day in 2..7) {
-                            Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                                state.scheduleByDay[day]!!.forEach { schedule ->
-                                    Card(modifier = Modifier.height(44.dp).width(60.dp).padding(vertical = 2.dp, horizontal = 1.dp).align(Alignment.CenterVertically),
+                            Row {
+                                state.scheduleByDay[day]?.forEach { schedule ->
+                                    Card(
+                                        modifier = Modifier
+                                            .height(44.dp)
+                                            .width(60.dp)
+                                            .padding(vertical = 2.dp, horizontal = 1.dp)
+                                            .align(Alignment.CenterVertically),
                                         colors = CardDefaults.cardColors(
-                                            containerColor = colorMap[state.attendanceBySchedule[schedule.id]?.status
-                                                ?: AttendanceStatus.UNMARKED] ?: Color.Blue
+                                            containerColor = colorMap[
+                                                state.attendanceBySchedule[schedule.id]?.status
+                                                    ?: AttendanceStatus.UNMARKED
+                                            ] ?: Color.Blue
                                         ),
-                                        shape = RoundedCornerShape((4.dp)),
+                                        shape = RoundedCornerShape(4.dp),
                                         onClick = {
-                                            viewModel.updateAttendanceStatus(
-                                                schedule.id,
-                                                statusMap[state.attendanceBySchedule[schedule.id]?.status]
-                                                    ?: AttendanceStatus.PRESENT
-                                            )
+//                                            val currentStatus =
+//                                            val newStatus = statusMap[state.attendanceBySchedule[schedule.id]?.status
+//                                                ?: AttendanceStatus.UNMARKED]
+//                                                ?: AttendanceStatus.PRESENT
+
+                                            viewModel.updateAttendanceStatus(schedule.id, statusMap[state.attendanceBySchedule[schedule.id]?.status]
+                                                ?: AttendanceStatus.PRESENT)
                                             when(statusMap[state.attendanceBySchedule[schedule.id]?.status]
                                                 ?: AttendanceStatus.PRESENT){
                                                 AttendanceStatus.PRESENT -> {
@@ -149,20 +165,24 @@ fun TimetableScreen() {
                                                 AttendanceStatus.ABSENT -> {
                                                     viewModel.updateAttendanceCount(schedule.subjectId, 1)
                                                     viewModel.updateAttendanceCount(schedule.subjectId, 2)
-                                                    subjectMapLocal[schedule.subjectId]!!.present--
+                                                    if(subjectMapLocal[schedule.subjectId]!!.present>0)
+                                                        subjectMapLocal[schedule.subjectId]!!.present--
                                                     subjectMapLocal[schedule.subjectId]!!.absent++
                                                 }
                                                 AttendanceStatus.UNMARKED -> {
                                                     viewModel.updateAttendanceCount(schedule.subjectId, 3)
-                                                    subjectMapLocal[schedule.subjectId]!!.absent--
+                                                    if(subjectMapLocal[schedule.subjectId]!!.absent >0)
+                                                        subjectMapLocal[schedule.subjectId]!!.absent--
                                                 }
                                             }
                                         }
                                     ) {
                                         Text(
-                                            subjectMap[schedule.subjectId]!!.name,
+                                            subjectMap[schedule.subjectId]?.name ?: "Unknown",
                                             fontSize = 14.sp,
-                                            modifier = Modifier.fillMaxSize().wrapContentSize(Alignment.Center)
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .wrapContentSize(Alignment.Center)
                                         )
                                     }
                                 }
@@ -230,26 +250,28 @@ fun WeekSelector(
     }
     Row(
         modifier = modifier
+            .padding(horizontal = 8.dp, vertical = 24.dp)
             .fillMaxWidth()
-            .padding(16.dp),
+            .background(color = Color.LightGray, shape = RoundedCornerShape(100)),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.Center
     ) {
-        IconButton(onClick = onPreviousClick) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Previous Week")
+        IconButton(onClick = onPreviousClick, modifier = Modifier.weight(.1f)) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous Week")
         }
 
         Text(
             text = getWeekRange(currentWeek),
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center
+            fontSize = 16.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.weight(.7f)
         )
 
-        IconButton(onClick = { showDatePicker = true }) {
+        IconButton(onClick = { showDatePicker = true }, modifier = Modifier.weight(.1f)) {
             Icon(Icons.Filled.DateRange, "Select Date")
         }
-        IconButton(onClick = onNextClick) {
-            Icon(Icons.AutoMirrored.Filled.ArrowForward, "Next Week")
+        IconButton(onClick = onNextClick, modifier = Modifier.weight(.1f)) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next Week")
         }
     }
 }
