@@ -31,8 +31,8 @@ class TimetableViewModel @Inject constructor(
     val timetableState: StateFlow<TimetableState> = _timetableState.asStateFlow()
 
     // Attendance summary
-    private val _attendanceSummary = MutableStateFlow(emptyMap<Long, Pair<Int, Int>>())
-    val attendanceSummary: StateFlow<Map<Long, Pair<Int, Int>>> = _attendanceSummary.asStateFlow()
+//    private val _attendanceSummary = MutableStateFlow(emptyMap<Long, Pair<Int, Int>>())
+//    val attendanceSummary: StateFlow<Map<Long, Pair<Int, Int>>> = _attendanceSummary.asStateFlow()
 
     init {
         loadTimetableData()
@@ -62,12 +62,12 @@ class TimetableViewModel @Inject constructor(
                 )
             }.collect { state ->
                 _timetableState.value = state
-                if (state is TimetableState.Success) {
-                    _attendanceSummary.value = calculateAttendance(
-                        state.scheduleByDay.values.flatten(),
-                        state.attendanceBySchedule
-                    )
-                }
+//                if (state is TimetableState.Success) {
+//                    _attendanceSummary.value = calculateAttendance(
+//                        state.scheduleByDay.values.flatten(),
+//                        state.attendanceBySchedule
+//                    )
+//                }
             }
         }
     }
@@ -97,6 +97,19 @@ class TimetableViewModel @Inject constructor(
         }
     }
 
+    fun updateAttendanceCount(subjectId: Long, type: Int) {
+        viewModelScope.launch {
+            when (type) {
+                0 -> repository.incrementPresent(subjectId)
+                1 -> repository.incrementAbsent(subjectId)
+                2 -> repository.decrementPresent(subjectId)
+                3 -> repository.decrementAbsent(subjectId)
+                else -> error("Invalid attendance type")
+            }
+        }
+    }
+
+
 //    private fun updateLocalState(scheduleId: Long, status: AttendanceStatus) {
 //        val currentState = _timetableState.value
 //        if (currentState is TimetableState.Success) {
@@ -122,24 +135,24 @@ class TimetableViewModel @Inject constructor(
 //        }
 //    }
 
-    private fun calculateAttendance(
-        schedules: List<Schedule>,
-        attendance: Map<Long, Attendance>
-    ): Map<Long, Pair<Int, Int>> {
-        return schedules.groupBy { it.subjectId }.mapValues { (_, subjectSchedules) ->
-            val total = subjectSchedules.size
-            if (total == 0) Pair(0,0)
-            else {
-                val presentCount = subjectSchedules.count {
-                    attendance[it.id]?.status == AttendanceStatus.PRESENT
-                }
-                val absentCount = subjectSchedules.count {
-                    attendance[it.id]?.status == AttendanceStatus.ABSENT
-                }
-                Pair(presentCount, absentCount)
-            }
-        }
-    }
+//    private fun calculateAttendance(
+//        schedules: List<Schedule>,
+//        attendance: Map<Long, Attendance>
+//    ): Map<Long, Pair<Int, Int>> {
+//        return schedule';s.groupBy { it.subjectId }.mapValues { (_, subjectSchedules) ->
+//            val total = subjectSchedules.size
+//            if (total == 0) Pair(0,0)
+//            else {
+//                val presentCount = subjectSchedules.count {
+//                    attendance[it.id]?.status == AttendanceStatus.PRESENT
+//                }
+//                val absentCount = subjectSchedules.count {
+//                    attendance[it.id]?.status == AttendanceStatus.ABSENT
+//                }
+//                Pair(presentCount, absentCount)
+//            }
+//        }
+//    }
 
 //    private fun getStartOfWeek(timeMillis: Long): Long {
 //        val calendar = Calendar.getInstance().apply {

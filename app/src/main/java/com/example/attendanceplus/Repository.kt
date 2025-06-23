@@ -33,4 +33,8 @@ class Repository @Inject constructor(
     fun getWeeklyAttendance(weekStart: Long) = attendanceDao.getAttendanceForWeek(weekStart)
     suspend fun getAttendanceRecord(weekStart: Long, scheduleId: Long) =
         attendanceDao.getAttendanceRecord(weekStart, scheduleId)
+    suspend fun incrementPresent(subjectId: Long) = subjectDao.incrementPresent(subjectId)
+    suspend fun incrementAbsent(subjectId: Long) = subjectDao.incrementAbsent(subjectId)
+    suspend fun decrementPresent(subjectId: Long) = subjectDao.decrementPresent(subjectId)
+    suspend fun decrementAbsent(subjectId: Long) = subjectDao.decrementAbsent(subjectId)
 }

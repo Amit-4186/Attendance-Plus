@@ -16,4 +16,16 @@ interface SubjectDao {
 
     @Query("DELETE FROM subjects WHERE id = :id")
     suspend fun delete(id: Long)
+
+    @Query("UPDATE subjects SET present = present + 1 WHERE id = :subjectId")
+    suspend fun incrementPresent(subjectId: Long)
+
+    @Query("UPDATE subjects SET absent = absent + 1 WHERE id = :subjectId")
+    suspend fun incrementAbsent(subjectId: Long)
+
+    @Query("UPDATE subjects SET present = present - 1 WHERE id = :subjectId AND present > 0")
+    suspend fun decrementPresent(subjectId: Long)
+
+    @Query("UPDATE subjects SET absent = absent - 1 WHERE id = :subjectId AND absent > 0")
+    suspend fun decrementAbsent(subjectId: Long)
 }

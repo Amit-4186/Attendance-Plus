@@ -7,5 +7,6 @@ import androidx.room.PrimaryKey
 data class Subject(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
-    //val color: Int // ARGB color value
+    var present: Int = 0,
+    var absent: Int = 0
 )

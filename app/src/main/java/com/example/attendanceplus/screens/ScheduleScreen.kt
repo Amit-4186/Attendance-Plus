@@ -41,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpOffset
@@ -138,17 +139,17 @@ fun ScheduleScreen(navController: NavController) {
                         modifier = Modifier
                             .horizontalScroll(rememberScrollState())
                             .heightIn(60.dp)
-                            .padding(horizontal = 4.dp, vertical = 1.dp),
+                            .padding(horizontal = 2.dp, vertical = 1.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         weekListMap[day]!!.forEach { subject ->
                             Text(
                                 subject.name,
                                 modifier = Modifier
-                                    .padding(4.dp)
                                     .size(height = 50.dp, width = 70.dp)
                                     .align(Alignment.CenterVertically)
-                                    .background(color = Color.Cyan),
+                                    .background(color = Color.Cyan)
+                                    .clip(RoundedCornerShape(8.dp)),
                             )
                         }
 

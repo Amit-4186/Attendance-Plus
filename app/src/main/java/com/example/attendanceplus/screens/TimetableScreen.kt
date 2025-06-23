@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -46,20 +45,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.attendanceplus.database.AttendanceStatus
+import com.example.attendanceplus.database.Subject
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import kotlin.collections.getValue
 
 @Composable
 fun TimetableScreen() {
     val viewModel: TimetableViewModel = hiltViewModel()
     val timetableState by viewModel.timetableState.collectAsState()
-    val attendanceSummary by viewModel.attendanceSummary.collectAsState()
-    val attendanceSummaryLocal = remember { attendanceSummary }
+//    val attendanceSummary by viewModel.attendanceSummary.collectAsState()
+//    val attendanceSummaryLocal = remember { attendanceSummary }
     val subjectMap by viewModel.subjectMap.collectAsState()
+    var subjectMapLocal by remember { mutableStateOf<Map<Long, Subject>>(emptyMap()) }
     val currentWeek by viewModel.currentWeek.collectAsState()
     val weekInMillis = 7 * 24 * 60 * 60 * 1000L
+
+    LaunchedEffect(subjectMap.isEmpty()) {
+        subjectMapLocal = subjectMap.toMutableMap()
+    }
 
     val statusMap = mapOf<AttendanceStatus, AttendanceStatus>(
         AttendanceStatus.UNMARKED to AttendanceStatus.PRESENT,
@@ -104,7 +108,7 @@ fun TimetableScreen() {
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier
-                                    .padding(4.dp)
+                                    .padding(2.dp)
                                     .height(40.dp)
                                     .width(30.dp)
                             ) {
@@ -124,21 +128,40 @@ fun TimetableScreen() {
                         for (day in 2..7) {
                             Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
                                 state.scheduleByDay[day]!!.forEach { schedule ->
-                                    Card(modifier = Modifier.height(48.dp).width(60.dp).padding(vertical = 4.dp, horizontal = 1.dp).align(Alignment.CenterVertically),
+                                    Card(modifier = Modifier.height(44.dp).width(60.dp).padding(vertical = 2.dp, horizontal = 1.dp).align(Alignment.CenterVertically),
                                         colors = CardDefaults.cardColors(
                                             containerColor = colorMap[state.attendanceBySchedule[schedule.id]?.status
                                                 ?: AttendanceStatus.UNMARKED] ?: Color.Blue
                                         ),
+                                        shape = RoundedCornerShape((4.dp)),
                                         onClick = {
                                             viewModel.updateAttendanceStatus(
                                                 schedule.id,
                                                 statusMap[state.attendanceBySchedule[schedule.id]?.status]
                                                     ?: AttendanceStatus.PRESENT
                                             )
+                                            when(statusMap[state.attendanceBySchedule[schedule.id]?.status]
+                                                ?: AttendanceStatus.PRESENT){
+                                                AttendanceStatus.PRESENT -> {
+                                                    viewModel.updateAttendanceCount(schedule.subjectId,0)
+                                                    subjectMapLocal[schedule.subjectId]!!.present++
+                                                }
+                                                AttendanceStatus.ABSENT -> {
+                                                    viewModel.updateAttendanceCount(schedule.subjectId, 1)
+                                                    viewModel.updateAttendanceCount(schedule.subjectId, 2)
+                                                    subjectMapLocal[schedule.subjectId]!!.present--
+                                                    subjectMapLocal[schedule.subjectId]!!.absent++
+                                                }
+                                                AttendanceStatus.UNMARKED -> {
+                                                    viewModel.updateAttendanceCount(schedule.subjectId, 3)
+                                                    subjectMapLocal[schedule.subjectId]!!.absent--
+                                                }
+                                            }
                                         }
                                     ) {
                                         Text(
                                             subjectMap[schedule.subjectId]!!.name,
+                                            fontSize = 14.sp,
                                             modifier = Modifier.fillMaxSize().wrapContentSize(Alignment.Center)
                                         )
                                     }
@@ -152,13 +175,32 @@ fun TimetableScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        attendanceSummary.forEach { (subjectId, percentage) ->
+//        attendanceSummary.forEach { (subjectId, percentage) ->
+//            Row(3
+        2
+//                horizontalArrangement = Arrangement.SpaceBetween,
+//                modifier = Modifier.fillMaxWidth().padding(8.dp)
+//            ) {
+//                Text(subjectMap[subjectId]!!.name)
+//                Text("$percentage %")
+//            }
+//        }
+//
+        Row {
+            Spacer(modifier = Modifier.weight(.4f))
+            Text("Present", modifier = Modifier.weight(.2f), textAlign = TextAlign.Center)
+            Text("Absent", modifier = Modifier.weight(.2f), textAlign = TextAlign.Center)
+            Text("Percent", modifier = Modifier.weight(.2f), textAlign = TextAlign.Center)
+        }
+        subjectMapLocal.forEach { (_, subject) ->
             Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.SpaceEvenly,
                 modifier = Modifier.fillMaxWidth().padding(8.dp)
             ) {
-                Text(subjectMap[subjectId]!!.name)
-                Text("$percentage %")
+                Text(subject.name, modifier = Modifier.weight(.4f))
+                Text("${subject.present}", modifier = Modifier.weight(.2f), textAlign = TextAlign.Center)
+                Text("${subject.absent}", modifier = Modifier.weight(.2f), textAlign = TextAlign.Center)
+                Text("${if(subject.absent==0) 100 else subject.present*100/(subject.present+subject.absent)} %", modifier = Modifier.weight(.2f), textAlign = TextAlign.Center)
             }
         }
     }
