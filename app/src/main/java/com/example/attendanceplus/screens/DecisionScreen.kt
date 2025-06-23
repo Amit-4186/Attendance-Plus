@@ -19,16 +19,19 @@ import com.example.attendanceplus.screens.TimetableState.Loading
 fun DecisionScreen(navController: NavController) {
     val setupViewModel: SetupViewModel = hiltViewModel()
     val isSetupComplete by setupViewModel.isSetupComplete.collectAsState(initial = false)
+    val isSetupCompleteUpdate by setupViewModel.isSetupCompleteUpdate.collectAsState(initial = false)
 
     LaunchedEffect(Unit) {
-        if (isSetupComplete) {
-            navController.navigate(Screen.Timetable.route) {
-                popUpTo(Screen.Decision.route) { inclusive = true }
-            }
-        } else {
-            navController.navigate(Screen.Subjects.route) {
-                popUpTo(Screen.Decision.route) { inclusive = true }
-            }
+
+    }
+
+    if (isSetupCompleteUpdate && isSetupComplete) {
+        navController.navigate(Screen.Timetable.route) {
+            popUpTo(Screen.Decision.route) { inclusive = true }
+        }
+    } else if (isSetupCompleteUpdate) {
+        navController.navigate(Screen.Subjects.route) {
+            popUpTo(Screen.Decision.route) { inclusive = true }
         }
     }
 

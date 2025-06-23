@@ -24,8 +24,11 @@ class SetupViewModel @Inject constructor(
     val schedule: StateFlow<Map<Int, List<Schedule>>> = _schedule.asStateFlow()
 
     // Track setup completion state
-    private val _isSetupComplete = MutableStateFlow(false)
+    private val _isSetupComplete = MutableStateFlow<Boolean>(false)
     val isSetupComplete: StateFlow<Boolean> = _isSetupComplete.asStateFlow()
+
+    private val _isSetupCompleteUpdate = MutableStateFlow<Boolean>(false)
+    val isSetupCompleteUpdate: StateFlow<Boolean> = _isSetupCompleteUpdate.asStateFlow()
 
     init {
         checkSetupState()
@@ -38,6 +41,7 @@ class SetupViewModel @Inject constructor(
             val hasSubjects = repository.getAllSubjects().first().isNotEmpty()
             val hasSchedule = repository.getAllSchedules().first().isNotEmpty()
             _isSetupComplete.value = hasSubjects && hasSchedule
+            _isSetupCompleteUpdate.value = true
         }
     }
 
