@@ -3,12 +3,14 @@ package com.example.attendanceplus.screens
 import android.app.DatePickerDialog
 import android.content.Context
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,10 +40,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -77,12 +80,8 @@ fun TimetableScreen() {
     )
 
     val weekMap = mapOf<Int, String>(
-        2 to "Mon",
-        3 to "Tue",
-        4 to "Wed",
-        5 to "Thu",
-        6 to "Fri",
-        7 to "Sat"
+        2 to "Mon", 3 to "Tue", 4 to "Wed",
+        5 to "Thu", 6 to "Fri", 7 to "Sat"
     )
 
     Column(modifier = Modifier.padding(horizontal = 8.dp)) {
@@ -106,8 +105,8 @@ fun TimetableScreen() {
             }
 
             is TimetableState.Success -> {
-                Row(modifier = Modifier.wrapContentHeight()) {
 
+                Row(modifier = Modifier.wrapContentHeight()) {
                     Column {
                         for (day in 2..7) {
                             Card(
@@ -119,7 +118,7 @@ fun TimetableScreen() {
                                     .width(30.dp)
                             ) {
                                 Text(
-                                    text = weekMap[day]!!,
+                                    text = weekMap[day] ?: "?",
                                     modifier = Modifier
                                         .rotate(-90f)
                                         .fillMaxSize()
@@ -131,58 +130,75 @@ fun TimetableScreen() {
                         }
                     }
 
-                    Column(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                    ) {
                         for (day in 2..7) {
                             Row {
                                 state.scheduleByDay[day]?.forEach { schedule ->
-                                    Card(
+                                    Box(
+                                        contentAlignment = Alignment.Center,
                                         modifier = Modifier
                                             .height(44.dp)
-                                            .width(60.dp)
-                                            .padding(vertical = 2.dp, horizontal = 1.dp)
-                                            .align(Alignment.CenterVertically),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = colorMap[
-                                                state.attendanceBySchedule[schedule.id]?.status
-                                                    ?: AttendanceStatus.UNMARKED
-                                            ] ?: Color.Blue
-                                        ),
-                                        shape = RoundedCornerShape(4.dp),
-                                        onClick = {
-//                                            val currentStatus =
-//                                            val newStatus = statusMap[state.attendanceBySchedule[schedule.id]?.status
-//                                                ?: AttendanceStatus.UNMARKED]
-//                                                ?: AttendanceStatus.PRESENT
+                                            .width(80.dp)
+                                            .padding(2.dp)
+                                            .clickable {
+                                                viewModel.updateAttendanceStatus(
+                                                    schedule.id,
+                                                    statusMap[state.attendanceBySchedule[schedule.id]?.status]
+                                                        ?: AttendanceStatus.PRESENT
+                                                )
+                                                when (statusMap[state.attendanceBySchedule[schedule.id]?.status]
+                                                    ?: AttendanceStatus.PRESENT) {
+                                                    AttendanceStatus.PRESENT -> {
+                                                        viewModel.updateAttendanceCount(
+                                                            schedule.subjectId,
+                                                            0
+                                                        )
+                                                        subjectMapLocal[schedule.subjectId]!!.present++
+                                                    }
 
-                                            viewModel.updateAttendanceStatus(schedule.id, statusMap[state.attendanceBySchedule[schedule.id]?.status]
-                                                ?: AttendanceStatus.PRESENT)
-                                            when(statusMap[state.attendanceBySchedule[schedule.id]?.status]
-                                                ?: AttendanceStatus.PRESENT){
-                                                AttendanceStatus.PRESENT -> {
-                                                    viewModel.updateAttendanceCount(schedule.subjectId,0)
-                                                    subjectMapLocal[schedule.subjectId]!!.present++
-                                                }
-                                                AttendanceStatus.ABSENT -> {
-                                                    viewModel.updateAttendanceCount(schedule.subjectId, 1)
-                                                    viewModel.updateAttendanceCount(schedule.subjectId, 2)
-                                                    if(subjectMapLocal[schedule.subjectId]!!.present>0)
-                                                        subjectMapLocal[schedule.subjectId]!!.present--
-                                                    subjectMapLocal[schedule.subjectId]!!.absent++
-                                                }
-                                                AttendanceStatus.UNMARKED -> {
-                                                    viewModel.updateAttendanceCount(schedule.subjectId, 3)
-                                                    if(subjectMapLocal[schedule.subjectId]!!.absent >0)
-                                                        subjectMapLocal[schedule.subjectId]!!.absent--
+                                                    AttendanceStatus.ABSENT -> {
+                                                        viewModel.updateAttendanceCount(
+                                                            schedule.subjectId,
+                                                            1
+                                                        )
+                                                        viewModel.updateAttendanceCount(
+                                                            schedule.subjectId,
+                                                            2
+                                                        )
+                                                        if (subjectMapLocal[schedule.subjectId]!!.present > 0)
+                                                            subjectMapLocal[schedule.subjectId]!!.present--
+                                                        subjectMapLocal[schedule.subjectId]!!.absent++
+                                                    }
+
+                                                    AttendanceStatus.UNMARKED -> {
+                                                        viewModel.updateAttendanceCount(
+                                                            schedule.subjectId,
+                                                            3
+                                                        )
+                                                        if (subjectMapLocal[schedule.subjectId]!!.absent > 0)
+                                                            subjectMapLocal[schedule.subjectId]!!.absent--
+                                                    }
                                                 }
                                             }
-                                        }
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(
+                                                color = colorMap[state.attendanceBySchedule[schedule.id]?.status
+                                                    ?: AttendanceStatus.UNMARKED] ?: Color.Black,
+                                                shape = RoundedCornerShape(4.dp)
+                                            )
                                     ) {
                                         Text(
-                                            subjectMap[schedule.subjectId]?.name ?: "Unknown",
-                                            fontSize = 14.sp,
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .wrapContentSize(Alignment.Center)
+                                            text = subjectMap[schedule.subjectId]?.name ?: "?",
+                                            fontSize = 10.sp,
+                                            maxLines = 2,
+                                            textAlign = TextAlign.Center,
+                                            lineHeight = 14.sp,
+                                            color = Color.White,
+                                            modifier = Modifier.wrapContentSize()
                                         )
                                     }
                                 }
@@ -195,32 +211,60 @@ fun TimetableScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-//        attendanceSummary.forEach { (subjectId, percentage) ->
-//            Row(3
-        2
-//                horizontalArrangement = Arrangement.SpaceBetween,
-//                modifier = Modifier.fillMaxWidth().padding(8.dp)
-//            ) {
-//                Text(subjectMap[subjectId]!!.name)
-//                Text("$percentage %")
-//            }
-//        }
-//
-        Row {
-            Spacer(modifier = Modifier.weight(.4f))
-            Text("Present", modifier = Modifier.weight(.2f), textAlign = TextAlign.Center)
-            Text("Absent", modifier = Modifier.weight(.2f), textAlign = TextAlign.Center)
-            Text("Percent", modifier = Modifier.weight(.2f), textAlign = TextAlign.Center)
+        Row(modifier = Modifier.padding(horizontal = 4.dp)) {
+            Spacer(modifier = Modifier.weight(.55f))
+            Text("Present", modifier = Modifier.weight(.15f), fontSize = 12.sp, textAlign = TextAlign.Center)
+            Text("Absent", modifier = Modifier.weight(.15f), fontSize = 12.sp, textAlign = TextAlign.Center)
+            Text("Percent", modifier = Modifier.weight(.15f), fontSize = 12.sp, textAlign = TextAlign.Center)
         }
         subjectMapLocal.forEach { (_, subject) ->
             Row(
                 horizontalArrangement = Arrangement.SpaceEvenly,
-                modifier = Modifier.fillMaxWidth().padding(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(32.dp)
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                    .background(color = Color.LightGray, RoundedCornerShape(100))
+                    .shadow(2.dp, RoundedCornerShape(100))
             ) {
-                Text(subject.name, modifier = Modifier.weight(.4f))
-                Text("${subject.present}", modifier = Modifier.weight(.2f), textAlign = TextAlign.Center)
-                Text("${subject.absent}", modifier = Modifier.weight(.2f), textAlign = TextAlign.Center)
-                Text("${if(subject.absent==0) 100 else subject.present*100/(subject.present+subject.absent)} %", modifier = Modifier.weight(.2f), textAlign = TextAlign.Center)
+                Text(
+                    subject.name,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .weight(.55f)
+                        .fillMaxHeight()
+                        .wrapContentHeight(Alignment.CenterVertically),
+                    maxLines = 2,
+                    lineHeight = 16.sp,
+                )
+                Text(
+                    text = "${subject.present}",
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .weight(.15f)
+                        .fillMaxHeight()
+                        .wrapContentHeight(Alignment.CenterVertically),
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    "${subject.absent}",
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .weight(.15f)
+                        .fillMaxHeight()
+                        .wrapContentHeight(Alignment.CenterVertically),
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    "${if (subject.absent == 0) 100 else subject.present * 100 / (subject.present + subject.absent)} %",
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .weight(.15f)
+                        .fillMaxHeight()
+                        .wrapContentHeight(Alignment.CenterVertically),
+                    textAlign = TextAlign.Center,
+                )
             }
         }
     }
@@ -285,11 +329,9 @@ fun getWeekRange(currentWeek: Long): String {
         set(Calendar.MILLISECOND, 0)
     }
 
-    // Ensure calendar is at Monday
     calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
     val monday = calendar.time
 
-    // Get Saturday (Monday + 5 days)
     calendar.add(Calendar.DAY_OF_MONTH, 5)
     val saturday = calendar.time
 
@@ -332,13 +374,9 @@ private fun DatePicker(
 }
 
 fun getStartOfWeek(calendar: Calendar): Long {
-    // Clone to avoid mutating original calendar
     val weekStart = calendar.clone() as Calendar
 
-    // Set to Monday
     weekStart.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
-
-    // Reset time fields
     weekStart.set(Calendar.HOUR_OF_DAY, 0)
     weekStart.set(Calendar.MINUTE, 0)
     weekStart.set(Calendar.SECOND, 0)

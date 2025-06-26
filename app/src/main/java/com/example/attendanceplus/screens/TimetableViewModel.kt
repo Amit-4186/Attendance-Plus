@@ -26,55 +26,88 @@ class TimetableViewModel @Inject constructor(
     private val _subjectMap = MutableStateFlow<Map<Long, Subject>>(emptyMap())
     val subjectMap: StateFlow<Map<Long, Subject>> = _subjectMap.asStateFlow()
 
-    // Cache for timetable states by week
-    private val _timetableCache = mutableMapOf<Long, TimetableState>()
+    private val _scheduleCache = MutableStateFlow<Map<Int, List<Schedule>>?>(null)
 
-    // Current timetable state
+    private val _attendanceCache = mutableMapOf<Long, Map<Long, Attendance>>()
+
     private val _timetableState = MutableStateFlow<TimetableState>(TimetableState.Loading)
     val timetableState: StateFlow<TimetableState> = _timetableState.asStateFlow()
 
     init {
         loadSubjectMap()
+        loadScheduleCache()
         loadTimetableDataForWeek(_currentWeek.value)
+    }
+
+    private fun loadScheduleCache() {
+        viewModelScope.launch {
+            val schedules = repository.getAllSchedules().first()
+            _scheduleCache.value = schedules.groupBy { it.dayOfWeek }
+        }
     }
 
     fun setWeek(weekStart: Long) {
         _currentWeek.value = weekStart
 
-        // Check cache first
-        _timetableCache[weekStart]?.let { cachedState ->
-            _timetableState.value = cachedState
-        } ?: run {
-            // Not in cache, load from database
-            _timetableState.value = TimetableState.Loading
-            loadTimetableDataForWeek(weekStart)
+        val schedule = _scheduleCache.value
+        val attendance = _attendanceCache[weekStart]
+
+        when {
+            schedule != null && attendance != null -> {
+                _timetableState.value = TimetableState.Success(
+                    scheduleByDay = schedule,
+                    attendanceBySchedule = attendance
+                )
+            }
+            schedule != null -> {
+                _timetableState.value = TimetableState.Success(
+                    scheduleByDay = schedule,
+                    attendanceBySchedule = emptyMap()
+                )
+                loadAttendanceForWeek(weekStart)
+            }
+            else -> {
+                _timetableState.value = TimetableState.Loading
+                loadTimetableDataForWeek(weekStart)
+            }
         }
     }
 
     private fun loadTimetableDataForWeek(weekStart: Long) {
         viewModelScope.launch {
             try {
-                // Load schedules once (they don't change per week)
-                val schedules = repository.getAllSchedules().first()
-                val scheduleMap = schedules.groupBy { it.dayOfWeek }
+                var schedule = _scheduleCache.value
+                if (schedule == null) {
+                    val schedules = repository.getAllSchedules().first()
+                    schedule = schedules.groupBy { it.dayOfWeek }
+                    _scheduleCache.value = schedule
+                }
 
-                // Load attendance for specific week
+                loadAttendanceForWeek(weekStart)
+            } catch (e: Exception) {
+                _timetableState.value = TimetableState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    private fun loadAttendanceForWeek(weekStart: Long) {
+        viewModelScope.launch {
+            try {
                 val attendanceRecords = repository.getWeeklyAttendance(weekStart).first()
                 val attendanceMap = attendanceRecords.associateBy { it.scheduleId }
 
-                val state = TimetableState.Success(
-                    scheduleByDay = scheduleMap,
-                    attendanceBySchedule = attendanceMap
-                )
+                _attendanceCache[weekStart] = attendanceMap
 
-                // Update cache and state
-                _timetableCache[weekStart] = state
                 if (_currentWeek.value == weekStart) {
-                    _timetableState.value = state
+                    _scheduleCache.value?.let { schedule ->
+                        _timetableState.value = TimetableState.Success(
+                            scheduleByDay = schedule,
+                            attendanceBySchedule = attendanceMap
+                        )
+                    }
                 }
             } catch (e: Exception) {
-                // Handle error
-                _timetableState.value = TimetableState.Error(e.message ?: "Unknown error")
+                _timetableState.value = TimetableState.Error(e.message ?: "Failed to load attendance")
             }
         }
     }
@@ -83,10 +116,8 @@ class TimetableViewModel @Inject constructor(
         viewModelScope.launch {
             val week = _currentWeek.value
 
-            // Optimistic UI update
             updateLocalCache(week, scheduleId, status)
 
-            // Persist to database
             repository.getAttendanceRecord(week, scheduleId)?.let {
                 repository.updateAttendanceStatus(week, scheduleId, status)
             } ?: run {
@@ -102,27 +133,25 @@ class TimetableViewModel @Inject constructor(
     }
 
     private fun updateLocalCache(week: Long, scheduleId: Long, status: AttendanceStatus) {
-        val currentState = _timetableCache[week]
-        if (currentState is TimetableState.Success) {
-            val newAttendanceMap = currentState.attendanceBySchedule.toMutableMap()
-            newAttendanceMap[scheduleId] = newAttendanceMap[scheduleId]?.copy(
-                status = status
-            ) ?: Attendance(
-                weekStartDate = week,
-                scheduleId = scheduleId,
-                status = status
-            )
+        val currentAttendance = _attendanceCache[week] ?: emptyMap()
 
-            val newState = currentState.copy(
-                attendanceBySchedule = newAttendanceMap
-            )
+        val newAttendanceMap = currentAttendance.toMutableMap()
+        newAttendanceMap[scheduleId] = newAttendanceMap[scheduleId]?.copy(
+            status = status
+        ) ?: Attendance(
+            weekStartDate = week,
+            scheduleId = scheduleId,
+            status = status
+        )
 
-            // Update cache
-            _timetableCache[week] = newState
+        _attendanceCache[week] = newAttendanceMap
 
-            // Update current state if we're viewing this week
-            if (week == _currentWeek.value) {
-                _timetableState.value = newState
+        if (week == _currentWeek.value) {
+            _scheduleCache.value?.let { schedule ->
+                _timetableState.value = TimetableState.Success(
+                    scheduleByDay = schedule,
+                    attendanceBySchedule = newAttendanceMap
+                )
             }
         }
     }

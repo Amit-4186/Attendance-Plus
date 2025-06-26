@@ -1,22 +1,22 @@
 package com.example.attendanceplus.screens
 
-import androidx.compose.foundation.background
+import android.widget.Toast
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.Card
@@ -44,7 +44,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -58,7 +60,7 @@ import com.example.attendanceplus.database.Subject
 fun ScheduleScreen(navController: NavController) {
     val viewModel: SetupViewModel = hiltViewModel()
     val subjects by viewModel.subjects.collectAsState()
-    val schedule by viewModel.schedule.collectAsState()
+    val context = LocalContext.current
 
     val mon = remember { mutableStateListOf<Subject>() }
     val tue = remember { mutableStateListOf<Subject>() }
@@ -68,38 +70,42 @@ fun ScheduleScreen(navController: NavController) {
     val sat = remember { mutableStateListOf<Subject>() }
 
     val weekMap = mapOf<Int, String>(
-        2 to "Mon",
-        3 to "Tue",
-        4 to "Wed",
-        5 to "Thu",
-        6 to "Fri",
-        7 to "Sat"
+        2 to "Mon", 3 to "Tue", 4 to "Wed",
+        5 to "Thu", 6 to "Fri", 7 to "Sat"
     )
 
     val weekListMap = mapOf<Int, MutableList<Subject>>(
-        2 to mon,
-        3 to tue,
-        4 to wed,
-        5 to thu,
-        6 to fri,
-        7 to sat
+        2 to mon, 3 to tue, 4 to wed,
+        5 to thu, 6 to fri, 7 to sat
     )
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Create Schedule") })
+            TopAppBar(title = { Text("Create Schedule", fontWeight = FontWeight.Bold) })
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = {
-                viewModel.completeSetup()
-                navController.navigate(Screen.Timetable.route) {
-                    popUpTo(Screen.Subjects.route) { inclusive = true }
+            FloatingActionButton(
+                onClick = {
+                    if (!weekListMap.values.all { it.isNotEmpty() }) {
+                        Toast.makeText(context, "Complete Schedule!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        viewModel.completeSetup()
+                        navController.navigate(Screen.Timetable.route) {
+                            popUpTo(Screen.Subjects.route) { inclusive = true }
+                        }
+                    }
                 }
-            }) {
+            ) {
                 Row {
                     Row {
                         Text("Finish", modifier = Modifier.padding(start = 8.dp), fontSize = 16.sp)
-                        Icon(Icons.Filled.Done, "Finish", modifier = Modifier.size(24.dp).padding(end = 8.dp))
+                        Icon(
+                            Icons.Filled.Done,
+                            "Finish",
+                            modifier = Modifier
+                                .size(24.dp)
+                                .padding(end = 8.dp)
+                        )
                     }
                 }
             }
@@ -108,7 +114,7 @@ fun ScheduleScreen(navController: NavController) {
 
         Row(
             modifier = Modifier
-                .wrapContentHeight()
+                .fillMaxHeight()
                 .padding(padding)
         ) {
             Column {
@@ -117,8 +123,8 @@ fun ScheduleScreen(navController: NavController) {
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier
-                            .padding(horizontal = 1.dp, vertical = 1.dp)
-                            .height(60.dp)
+                            .padding(start = 4.dp, top = 1.dp, bottom = 1.dp)
+                            .height(52.dp)
                             .width(30.dp)
                     ) {
                         Text(
@@ -133,32 +139,41 @@ fun ScheduleScreen(navController: NavController) {
                     }
                 }
             }
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+            ) {
                 for (day in 2..7) {
                     Row(
                         modifier = Modifier
-                            .horizontalScroll(rememberScrollState())
-                            .heightIn(60.dp)
-                            .padding(horizontal = 2.dp, vertical = 1.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(1.dp)
+                            .height(52.dp)
                     ) {
                         weekListMap[day]!!.forEach { subject ->
-                            Text(
-                                subject.name,
+                            Box(
+                                contentAlignment = Alignment.Center,
                                 modifier = Modifier
-                                    .size(height = 50.dp, width = 70.dp)
-                                    .align(Alignment.CenterVertically)
-                                    .background(color = Color.Cyan)
-                                    .clip(RoundedCornerShape(8.dp)),
-                            )
+                                    .padding(horizontal = 1.dp)
+                                    .fillMaxHeight()
+                                    .width(80.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
+                            ) {
+                                Text(
+                                    text = subject.name,
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 16.sp,
+                                    modifier = Modifier.wrapContentSize()
+                                )
+                            }
                         }
 
                         var expanded by remember { mutableStateOf(false) }
-                        var xCord by remember { mutableStateOf(0.dp) }
                         IconButton(
                             onClick = {
                                 expanded = true
-                                xCord = (52 + schedule.size * 88).dp
                             },
                             colors = IconButtonDefaults.iconButtonColors(
                                 containerColor = Color(0x26000000)
@@ -166,7 +181,7 @@ fun ScheduleScreen(navController: NavController) {
                             modifier = Modifier
                                 .height(60.dp)
                                 .width(40.dp)
-                                .padding(4.dp)
+                                .padding(end = 2.dp)
                         ) {
                             Icon(
                                 Icons.Default.Add,
@@ -176,11 +191,9 @@ fun ScheduleScreen(navController: NavController) {
                             )
                         }
 
-                        // Dropdown menu for adding subjects
                         DropdownMenu(
                             expanded = expanded,
                             onDismissRequest = { expanded = false },
-                            offset = DpOffset(xCord, 0.dp)
                         ) {
                             subjects.forEach { subject ->
                                 DropdownMenuItem(
