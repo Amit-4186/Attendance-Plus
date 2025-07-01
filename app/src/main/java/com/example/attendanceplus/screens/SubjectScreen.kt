@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -61,7 +62,8 @@ fun SubjectsScreen(navController: NavController) {
 
     fun addSubject() {
         if (newSubject.isNotEmpty()) {
-            if (subjects.any { it.name == newSubject }) {
+            newSubject = newSubject.trim()
+            if (subjects.any { it.name.equals(newSubject, ignoreCase = true) }) {
                 Toast.makeText(context, "Subject already exists!", Toast.LENGTH_SHORT).show()
             } else {
                 viewModel.addSubject(newSubject)
@@ -69,7 +71,7 @@ fun SubjectsScreen(navController: NavController) {
                 newSubject = ""
             }
         } else {
-            Toast.makeText(context, "Subject name can't be empty!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Subject name can not be blank!", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -99,7 +101,14 @@ fun SubjectsScreen(navController: NavController) {
                     }
                 }
                 FloatingActionButton(
-                    onClick = { navController.navigate(Screen.Schedule.route) },
+                    onClick = {
+                        if(subjects.isEmpty()){
+                            Toast.makeText(context, "Add one or more subjects!", Toast.LENGTH_SHORT).show()
+                        }
+                        else{
+                            navController.navigate(Screen.Schedule.route)
+                        }
+                    },
                     modifier = Modifier.padding(4.dp)
                 ) {
                     Row {
@@ -121,12 +130,15 @@ fun SubjectsScreen(navController: NavController) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .background(color = MaterialTheme.colorScheme.background)
-                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            color = MaterialTheme.colorScheme.background,
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        .clip(RoundedCornerShape(16.dp))
                 ) {
                     OutlinedTextField(
                         value = newSubject,
-                        onValueChange = { newSubject = it },
+                        onValueChange = { newSubject = sanitizeInput(it) },
                         modifier = Modifier
                             .padding(12.dp),
                         label = { Text("Subject Name") },
@@ -156,7 +168,12 @@ fun SubjectsScreen(navController: NavController) {
         }
 
         if (subjects.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(text = "No Subjects Added")
             }
         }
@@ -168,21 +185,32 @@ fun SubjectsScreen(navController: NavController) {
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(4.dp)
+                            .padding(8.dp)
                             .background(
                                 MaterialTheme.colorScheme.primary,
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(12.dp)
                             )
                             .clip(RoundedCornerShape(8.dp))
                             .height(60.dp)
                     ) {
-                        Text(subject.name, modifier = Modifier.padding(start = 12.dp), fontSize = 20.sp)
+                        Text(
+                            subject.name,
+                            modifier = Modifier.padding(start = 12.dp),
+                            fontSize = 20.sp,
+                            color = Color.White
+                        )
                         IconButton(onClick = { viewModel.deleteSubject(subject.id) }) {
-                            Icon(Icons.Filled.Delete, "Delete")
+                            Icon(Icons.Filled.Delete, "Delete", tint = Color.White)
                         }
                     }
                 }
             }
         }
     }
+}
+
+fun sanitizeInput(input: String): String {
+    var result = input.trimStart()
+    result = result.replace(Regex("\\s{2,}"), " ")
+    return result
 }

@@ -42,8 +42,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -51,6 +51,10 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.attendanceplus.database.AttendanceStatus
 import com.example.attendanceplus.database.Subject
+import com.example.attendanceplus.ui.theme.Absent
+import com.example.attendanceplus.ui.theme.Middle
+import com.example.attendanceplus.ui.theme.Present
+import com.example.attendanceplus.ui.theme.Unmarked
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -67,19 +71,19 @@ fun TimetableScreen() {
         subjectMapLocal = subjectMap.toMutableMap()
     }
 
-    val statusMap = mapOf<AttendanceStatus, AttendanceStatus>(
+    val statusMap = mapOf(
         AttendanceStatus.UNMARKED to AttendanceStatus.PRESENT,
         AttendanceStatus.PRESENT to AttendanceStatus.ABSENT,
         AttendanceStatus.ABSENT to AttendanceStatus.UNMARKED
     )
 
-    val colorMap = mapOf<AttendanceStatus, Color>(
-        AttendanceStatus.UNMARKED to Color.Gray,
-        AttendanceStatus.PRESENT to Color.Green,
-        AttendanceStatus.ABSENT to Color.Red
+    val colorMap = mapOf(
+        AttendanceStatus.UNMARKED to Unmarked,
+        AttendanceStatus.PRESENT to Present,
+        AttendanceStatus.ABSENT to Absent
     )
 
-    val weekMap = mapOf<Int, String>(
+    val weekMap = mapOf(
         2 to "Mon", 3 to "Tue", 4 to "Wed",
         5 to "Thu", 6 to "Fri", 7 to "Sat"
     )
@@ -218,14 +222,14 @@ fun TimetableScreen() {
             Text("Percent", modifier = Modifier.weight(.15f), fontSize = 12.sp, textAlign = TextAlign.Center)
         }
         subjectMapLocal.forEach { (_, subject) ->
+            val percent = if (subject.absent == 0) 100 else subject.present * 100 / (subject.present + subject.absent)
             Row(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(32.dp)
                     .padding(horizontal = 4.dp, vertical = 2.dp)
-                    .background(color = Color.LightGray, RoundedCornerShape(100))
-                    .shadow(2.dp, RoundedCornerShape(100))
+                    .background(color = getAttendanceColor(percent.toFloat()), RoundedCornerShape(100))
             ) {
                 Text(
                     subject.name,
@@ -257,7 +261,7 @@ fun TimetableScreen() {
                     textAlign = TextAlign.Center,
                 )
                 Text(
-                    "${if (subject.absent == 0) 100 else subject.present * 100 / (subject.present + subject.absent)} %",
+                    "$percent %",
                     fontSize = 14.sp,
                     modifier = Modifier
                         .weight(.15f)
@@ -383,4 +387,14 @@ fun getStartOfWeek(calendar: Calendar): Long {
     weekStart.set(Calendar.MILLISECOND, 0)
 
     return weekStart.timeInMillis
+}
+
+fun getAttendanceColor(value: Float): Color {
+    val clamped = value.coerceIn(0f, 100f)
+    return when {
+        clamped == 0f -> Absent
+        clamped < 37.5f -> lerp(Absent, Middle, clamped / 37.5f)
+        clamped < 75f -> lerp(Middle, Present, (clamped - 37.5f) / 37.5f)
+        else -> Present
+    }
 }

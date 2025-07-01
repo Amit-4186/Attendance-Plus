@@ -35,6 +35,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,9 +45,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -69,7 +75,7 @@ fun ScheduleScreen(navController: NavController) {
     val fri = remember { mutableStateListOf<Subject>() }
     val sat = remember { mutableStateListOf<Subject>() }
 
-    val weekMap = mapOf<Int, String>(
+    val weekMap = mapOf(
         2 to "Mon", 3 to "Tue", 4 to "Wed",
         5 to "Thu", 6 to "Fri", 7 to "Sat"
     )
@@ -171,17 +177,26 @@ fun ScheduleScreen(navController: NavController) {
                         }
 
                         var expanded by remember { mutableStateOf(false) }
+                        var xOffset by remember { mutableIntStateOf(0) }
+                        var xOffsetFrozen by remember { mutableStateOf<Int?>(null) }
+
                         IconButton(
                             onClick = {
+                                xOffsetFrozen = xOffset
                                 expanded = true
                             },
                             colors = IconButtonDefaults.iconButtonColors(
-                                containerColor = Color(0x26000000)
+                                containerColor = Color(
+                                    0x26000000
+                                )
                             ),
                             modifier = Modifier
                                 .height(60.dp)
                                 .width(40.dp)
                                 .padding(end = 2.dp)
+                                .onGloballyPositioned { layoutCoordinates ->
+                                    xOffset = layoutCoordinates.positionInRoot().x.toInt()
+                                }
                         ) {
                             Icon(
                                 Icons.Default.Add,
@@ -193,19 +208,26 @@ fun ScheduleScreen(navController: NavController) {
 
                         DropdownMenu(
                             expanded = expanded,
-                            onDismissRequest = { expanded = false },
+                            onDismissRequest = {
+                                expanded = false
+                                xOffsetFrozen = null
+                            },
+                            offset = with(LocalDensity.current) {
+                                val dropdownWidthDp = 200.dp
+                                val rawPx = xOffsetFrozen ?: xOffset
+                                val rawDp = rawPx.toDp()
+                                val maxXDp = (LocalWindowInfo.current.containerSize.width.toDp() - dropdownWidthDp)
+                                    .coerceAtLeast(0.dp)
+                                DpOffset(x = rawDp.coerceAtMost(maxXDp), y = 0.dp)
+                            }
                         ) {
                             subjects.forEach { subject ->
                                 DropdownMenuItem(
                                     text = { Text(subject.name) },
                                     onClick = {
-                                        weekListMap[day]!!.add(subject)
-                                        viewModel.addScheduleEntry(
-                                            day,
-                                            subject.id,
-                                            weekListMap[day]!!.size
-                                        )
                                         expanded = false
+                                        weekListMap[day]!!.add(subject)
+                                        viewModel.addScheduleEntry(day, subject.id, weekListMap[day]!!.size)
                                     }
                                 )
                             }
