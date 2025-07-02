@@ -74,7 +74,7 @@ Feel free to suggest improvements or report bugs – I'm always learning.
 
 ## 📬 Contact
 
-If you have questions, suggestions, or want to collaborate, hit me up on [LinkedIn](#) or drop a mail at [your.email@example.com](mailto:your.email@example.com)
+If you have questions, suggestions, or want to collaborate, hit me up on [LinkedIn](https://www.linkedin.com/in/amit-kr-patel/) or drop a mail at [amitkrpatel4.186@gmail.com](mailto:amitkrpatel4.186@gmail.com)
 
 ---
 
